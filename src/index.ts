@@ -2,7 +2,7 @@ import debug from "debug";
 import EventEmitter from "eventemitter3";
 import { NDKCacheAdapter } from "./cache/index.js";
 import dedupEvent from "./events/dedup.js";
-import NDKEvent from "./events/index.js";
+import NDKEvent, { NostrCount, NostrTop } from "./events/index.js";
 import { NDKPool } from "./relay/pool/index.js";
 import { calculateRelaySetFromEvent } from "./relay/sets/calculate.js";
 import { NDKRelaySet } from "./relay/sets/index.js";
@@ -12,6 +12,7 @@ import {
     NDKFilterOptions,
     NDKSubscription,
     NDKSubscriptionOptions,
+    NDKSubscriptionVerb,
     filterFromId
 } from "./subscription/index.js";
 import NDKUser, { NDKUserParams } from "./user/index.js";
@@ -200,6 +201,48 @@ export default class NDK extends EventEmitter {
         });
     }
 
+    /**
+     * Fetch a count
+     */
+    public async fetchCount(
+	filter: NDKFilter,
+	relaySet?: NDKRelaySet
+    ) : Promise<NostrCount | null> {
+        if (!filter) {
+            throw new Error(`Invalid filter: ${JSON.stringify(filter)}`);
+        }
+
+        return new Promise((resolve) => {
+            const s = this.subscribe(
+		filter, { verb: NDKSubscriptionVerb.VERB_COUNT, closeOnEose: true }, relaySet, false);
+            s.on("count", (count) => {
+                resolve(count);
+            });
+            s.start();
+        });
+    }
+
+    /**
+     * Fetch a top
+     */
+    public async fetchTop(
+	filter: NDKFilter,
+	relaySet?: NDKRelaySet
+    ) : Promise<NostrTop | null> {
+        if (!filter) {
+            throw new Error(`Invalid filter: ${JSON.stringify(filter)}`);
+        }
+
+        return new Promise((resolve) => {
+            const s = this.subscribe(
+		filter, { verb: NDKSubscriptionVerb.VERB_TOP, closeOnEose: true }, relaySet, false);
+            s.on("top", (top) => {
+                resolve(top);
+            });
+            s.start();
+        });
+    }
+    
     /**
      * Ensures that a signer is available to sign an event.
      */

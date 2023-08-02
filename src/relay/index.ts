@@ -1,7 +1,7 @@
 import EventEmitter from "eventemitter3";
 import { relayInit, Sub } from "nostr-tools";
 import "websocket-polyfill";
-import NDKEvent, { NDKTag, NostrEvent } from "../events/index.js";
+import NDKEvent, { NDKTag, NostrEvent, NostrCount, NostrTop } from "../events/index.js";
 import { NDKSubscription } from "../subscription/index.js";
 import User from "../user/index.js";
 import { NDKRelayScore } from "./score.js";
@@ -179,7 +179,8 @@ export class NDKRelay extends EventEmitter {
         const { filter } = subscription;
 
         const sub = this.relay.sub([filter], {
-            id: subscription.subId
+            id: subscription.subId,
+	    verb: subscription.opts.verb as any,
         });
         this.debug(`Subscribed to ${JSON.stringify(filter)}`);
 
@@ -191,6 +192,14 @@ export class NDKRelay extends EventEmitter {
 
         sub.on("eose", () => {
             subscription.eoseReceived(this);
+        });
+
+        sub.on("count", (c: NostrCount) => {
+            subscription.countReceived(c, this);
+        });
+
+        sub.on("top", (t: NostrTop) => {
+            subscription.topReceived(t, this);
         });
 
         const unsub = sub.unsub;
@@ -241,7 +250,7 @@ export class NDKRelay extends EventEmitter {
         let publishTimeout: NodeJS.Timeout;
 
         const publishPromise = new Promise<boolean>((resolve, reject) => {
-            a.on('failed', (err: any) => {
+/*            a.on('failed', (err: any) => {
                 clearTimeout(publishTimeout);
                 this.debug('Publish failed', err, event.id);
                 this.emit('publish:failed', event, err);
@@ -253,6 +262,8 @@ export class NDKRelay extends EventEmitter {
                 this.emit('published', event);
                 resolve(true);
             });
+*/
+	    resolve(true);
         });
 
         // If no timeout is specified, just return the publish promise

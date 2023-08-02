@@ -1,6 +1,6 @@
 import EventEmitter from "eventemitter3";
 import { Filter as NostrFilter, matchFilter, Sub, nip19 } from "nostr-tools";
-import NDKEvent, { NDKEventId } from "../events/index.js";
+import NDKEvent, { NDKEventId, NostrCount, NostrTop } from "../events/index.js";
 import NDK from "../index.js";
 import { NDKRelay } from "../relay";
 import { calculateRelaySetFromFilter } from "../relay/sets/calculate";
@@ -11,6 +11,17 @@ export type NDKFilter = NostrFilter;
 
 export interface NDKFilterOptions {
     skipCache?: boolean;
+}
+
+export enum NDKSubscriptionVerb {
+    // NIP-01
+    VERB_REQ = "REQ",
+
+    // NIP-45
+    VERB_COUNT = "COUNT",
+
+    // NIP-XX
+    VERB_TOP = "TOP"
 }
 
 export enum NDKSubscriptionCacheUsage {
@@ -47,6 +58,11 @@ export interface NDKSubscriptionOptions {
      * The subscription ID to use for the subscription.
      */
     subId?: string;
+
+    /**
+     * The verb to use for the sub, REQ | COUNT | TOP
+     */
+    verb?: NDKSubscriptionVerb;
 }
 
 /**
@@ -56,7 +72,8 @@ export const defaultOpts: NDKSubscriptionOptions = {
     closeOnEose: true,
     cacheUsage: NDKSubscriptionCacheUsage.CACHE_FIRST,
     groupable: true,
-    groupableDelay: 100
+    groupableDelay: 100,
+    verb: NDKSubscriptionVerb.VERB_REQ
 };
 
 /**
@@ -318,6 +335,18 @@ export class NDKSubscription extends EventEmitter {
                 this.emit("eose");
             }, 500);
         }
+    }
+
+    public countReceived(count: NostrCount, relay: NDKRelay): void {
+        this.emit("count", count, relay, this);
+        this.relaySubscriptions.get(relay)?.unsub();
+        this.relaySubscriptions.delete(relay);
+    }
+
+    public topReceived(top: NostrTop, relay: NDKRelay): void {
+        this.emit("top", top, relay, this);
+        this.relaySubscriptions.get(relay)?.unsub();
+        this.relaySubscriptions.delete(relay);
     }
 }
 

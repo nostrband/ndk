@@ -23,6 +23,14 @@ export type NostrEvent = {
     sig?: string;
 };
 
+export type NostrCount = {
+    count: number;
+};
+
+export type NostrTop = {
+    ids: string[];
+};
+
 type ContentTag = {
     tags: NDKTag[];
     content: string;
