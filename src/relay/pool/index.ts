@@ -40,9 +40,9 @@ export class NDKPool extends EventEmitter {
         this.debug(`Relay ${relayUrl} connected`);
         this.emit("relay:connect", this.relays.get(relayUrl));
 
-        if (this.stats().connected === this.relays.size) {
-            this.emit("connect");
-        }
+//        if (this.stats().connected === this.relays.size) {
+//            this.emit("connect");
+//        }
     }
 
     /**
@@ -53,8 +53,7 @@ export class NDKPool extends EventEmitter {
      * @returns {Promise<void>} A promise that resolves when all connection attempts have completed.
      * @throws {Error} If any of the connection attempts result in an error or timeout.
      */
-    public async connect(timeoutMs?: number): Promise<void> {
-        const promises: Promise<void>[] = [];
+    public async connect(timeoutMs?: number, minConns?:number): Promise<void> {
 
         this.debug(
             `Connecting to ${this.relays.size} relays${
@@ -62,26 +61,26 @@ export class NDKPool extends EventEmitter {
             }`
         );
 
+        const promises = new Map<string, Promise<void> >();
         for (const relay of this.relays.values()) {
             if (timeoutMs) {
                 const timeoutPromise = new Promise<void>((_, reject) => {
                     setTimeout(() => reject(`Timed out after ${timeoutMs}ms`), timeoutMs);
                 });
 
-                promises.push(
-                    Promise.race([relay.connect(), timeoutPromise]).catch((e) => {
-                        this.debug(`Failed to connect to relay ${relay.url}: ${e}`);
-                    })
-                );
+                promises.set(relay.url, Promise.race([relay.connect(), timeoutPromise]).catch((e) => {
+                    this.debug(`Failed to connect to relay ${relay.url}: ${e}`);
+		}));
             } else {
-                promises.push(relay.connect());
+                promises.set(relay.url, relay.connect());
             }
         }
 
         // If we are running with a timeout, check if we need to emit a `connect` event
         // in case some, but not all, relays were connected
+/*	let someTimeout = null;
         if (timeoutMs) {
-            setTimeout(() => {
+            someTimeout = setTimeout(() => {
                 const allConnected = this.stats().connected === this.relays.size;
                 const someConnected = this.stats().connected > 0;
 
@@ -90,8 +89,28 @@ export class NDKPool extends EventEmitter {
                 }
             }, timeoutMs);
         }
+*/
+	if (!minConns || minConns > this.relays.size)
+	    minConns = this.relays.size;
 
-        await Promise.all(promises);
+	// wait until minConns have been established,
+	// bread if all conn attempts have settled
+	while (this.stats().connected < minConns) {
+	    let unfulfilled = [];
+	    for (const url in promises) {
+		if (this.relays.get(url)?.status === NDKRelayStatus.CONNECTING)
+		    unfulfilled.push(promises.get(url));
+	    }
+	    if (unfulfilled.length > 0)
+		await Promise.any(unfulfilled);
+	    else
+		break;
+	}
+
+	// if we managed to get anything to connect,
+	// notify the client
+	if (this.stats().connected > 0)
+            this.emit("connect");
     }
 
     private handleFlapping(relay: NDKRelay) {
